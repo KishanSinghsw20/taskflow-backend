@@ -53,3 +53,13 @@ def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@router.get("/users", response_model=list[UserResponse])
+def list_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve list of users for task assignment."""
+    return db.query(User).all()
+
+
+

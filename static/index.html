@@ -581,8 +581,10 @@
             <form onsubmit="handleCreateTask(event)">
               <div class="modal-grid">
                 <div class="form-group">
-                  <label>Project ID</label>
-                  <input type="number" id="t-project-id" placeholder="1" required>
+                  <label>Select Project</label>
+                  <select id="t-project-id" required>
+                    <option value="">-- Select Project --</option>
+                  </select>
                 </div>
                 <div class="form-group">
                   <label>Task Title</label>
@@ -597,8 +599,10 @@
                   </select>
                 </div>
                 <div class="form-group">
-                  <label>Assignee User ID (Optional)</label>
-                  <input type="number" id="t-assignee" placeholder="User ID">
+                  <label>Select Assignee</label>
+                  <select id="t-assignee">
+                    <option value="">Unassigned</option>
+                  </select>
                 </div>
               </div>
               <div class="form-group">
@@ -805,6 +809,9 @@
       return res;
     }
 
+    let userMap = {};
+    let projectMap = {};
+
     async function initDashboard() {
       document.getElementById('auth-container').style.display = 'none';
       document.getElementById('dashboard-container').style.display = 'flex';
@@ -817,20 +824,32 @@
           document.getElementById('profile-email').innerText = user.email;
         }
 
-        loadProjects();
-        loadTasks();
-        loadNotifications();
+        await loadUsers();
+        await loadProjects();
+        await loadTasks();
+        await loadNotifications();
         checkSystemHealth();
       } catch (err) {
         console.error(err);
       }
     }
 
-    function switchNav(view) {
-      document.querySelectorAll('.content-view > div').forEach(el => el.style.display = 'none');
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      document.getElementById(`view-${view}`).style.display = 'block';
-      event.target.classList.add('active');
+    async function loadUsers() {
+      try {
+        const res = await fetchAPI('/auth/users');
+        if (res.ok) {
+          const users = await res.json();
+          userMap = {};
+          const assigneeSelect = document.getElementById('t-assignee');
+          assigneeSelect.innerHTML = `<option value="">Unassigned</option>`;
+          users.forEach(u => {
+            userMap[u.id] = u.name;
+            assigneeSelect.innerHTML += `<option value="${u.id}">${u.name} (${u.email})</option>`;
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     // Projects
@@ -838,12 +857,22 @@
       const res = await fetchAPI('/projects');
       if (res.ok) {
         const projects = await res.json();
+        projectMap = {};
         document.getElementById('stat-projects').innerText = projects.length;
         const tbody = document.getElementById('projects-table-body');
+        const projSelect = document.getElementById('t-project-id');
+        projSelect.innerHTML = `<option value="">-- Select Project --</option>`;
+
         if (projects.length === 0) {
           tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--muted);">No projects created yet.</td></tr>`;
           return;
         }
+
+        projects.forEach(p => {
+          projectMap[p.id] = p.name;
+          projSelect.innerHTML += `<option value="${p.id}">${p.name} (ID: #${p.id})</option>`;
+        });
+
         tbody.innerHTML = projects.map(p => `
           <tr>
             <td>${p.id}</td>
@@ -855,6 +884,7 @@
         `).join('');
       }
     }
+
 
     async function handleCreateProject(e) {
       e.preventDefault();
@@ -898,7 +928,7 @@
         tbody.innerHTML = data.items.map(t => `
           <tr>
             <td>${t.id}</td>
-            <td>Project #${t.project_id}</td>
+            <td><strong>${projectMap[t.project_id] || ('Project #' + t.project_id)}</strong></td>
             <td><strong>${t.title}</strong></td>
             <td>
               <select onchange="quickUpdateTaskStatus(${t.id}, this.value)" style="width: auto; padding: 0.2rem; font-size: 0.75rem;">
@@ -907,10 +937,11 @@
                 <option value="done" ${t.status === 'done' ? 'selected' : ''}>done</option>
               </select>
             </td>
-            <td>${t.assignee_id ? `User #${t.assignee_id}` : 'Unassigned'}</td>
+            <td>${t.assignee_id ? (userMap[t.assignee_id] || ('User #' + t.assignee_id)) : 'Unassigned'}</td>
             <td><button class="btn btn-danger" style="width: auto; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="deleteTask(${t.id})">Delete</button></td>
           </tr>
         `).join('');
+
       }
     }
 
