@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import math
+from datetime import datetime
+import json
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.api.v1.projects import get_user_project
+from app.core.redis import build_tasks_cache_key, invalidate_user_tasks_cache, redis_client
 from app.db.session import get_db
 from app.models.project import Project
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.models.user import User
-from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
+from app.schemas.task import PaginatedTasksResponse, TaskCreate, TaskResponse, TaskUpdate
 
 router = APIRouter(tags=["tasks"])
 
@@ -36,10 +40,8 @@ def create_task(
     current_user: User = Depends(get_current_user),
 ):
     """Create a task inside a project owned by the current authenticated user."""
-    # Verify project ownership
     get_user_project(project_id, db, current_user)
 
-    # Validate assignee if provided
     if task_in.assignee_id is not None:
         assignee = db.query(User).filter(User.id == task_in.assignee_id).first()
         if not assignee:
@@ -59,7 +61,78 @@ def create_task(
     db.add(task)
     db.commit()
     db.refresh(task)
+
+    # Invalidate task list cache for current user
+    invalidate_user_tasks_cache(current_user.id)
     return task
+
+
+@router.get("/tasks", response_model=PaginatedTasksResponse)
+def list_tasks(
+    status: TaskStatus | None = Query(None, description="Filter by task status"),
+    assignee_id: int | None = Query(None, description="Filter by assignee user ID"),
+    due_from: datetime | None = Query(None, description="Filter tasks due from datetime"),
+    due_to: datetime | None = Query(None, description="Filter tasks due to datetime"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List tasks belonging to the current user's projects with Redis caching, filtering, and pagination."""
+    due_from_str = due_from.isoformat() if due_from else None
+    due_to_str = due_to.isoformat() if due_to else None
+    status_str = status.value if status else None
+
+    cache_key = build_tasks_cache_key(
+        user_id=current_user.id,
+        status=status_str,
+        assignee_id=assignee_id,
+        due_from=due_from_str,
+        due_to=due_to_str,
+        page=page,
+        page_size=page_size,
+    )
+
+    # 1. Attempt cache hit from Redis
+    try:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return PaginatedTasksResponse.model_validate_json(cached_data)
+    except Exception:
+        pass
+
+    # 2. Database query fallback
+    query = db.query(Task).join(Project, Task.project_id == Project.id).filter(Project.owner_id == current_user.id)
+
+    if status:
+        query = query.filter(Task.status == status)
+    if assignee_id:
+        query = query.filter(Task.assignee_id == assignee_id)
+    if due_from:
+        query = query.filter(Task.due_date >= due_from)
+    if due_to:
+        query = query.filter(Task.due_date <= due_to)
+
+    total = query.count()
+    offset = (page - 1) * page_size
+    items = query.order_by(Task.created_at.desc()).offset(offset).limit(page_size).all()
+    total_pages = math.ceil(total / page_size) if total > 0 else 0
+
+    response = PaginatedTasksResponse(
+        items=[TaskResponse.model_validate(item) for item in items],
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+    )
+
+    # 3. Store result in Redis cache (TTL 5 minutes)
+    try:
+        redis_client.setex(cache_key, 300, response.model_dump_json())
+    except Exception:
+        pass
+
+    return response
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
@@ -97,6 +170,9 @@ def update_task(
     db.add(task)
     db.commit()
     db.refresh(task)
+
+    # Invalidate task list cache for current user
+    invalidate_user_tasks_cache(current_user.id)
     return task
 
 
@@ -110,4 +186,8 @@ def delete_task(
     task = get_user_task(task_id, db, current_user)
     db.delete(task)
     db.commit()
+
+    # Invalidate task list cache for current user
+    invalidate_user_tasks_cache(current_user.id)
     return None
+
