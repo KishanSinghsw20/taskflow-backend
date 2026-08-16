@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/taskflow"
+    DATABASE_URL: str = "postgresql://postgres:12345678@localhost:5432/taskflow"
     REDIS_URL: str = "redis://localhost:6379/0"
 
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
