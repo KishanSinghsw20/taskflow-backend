@@ -1,15 +1,200 @@
 # TaskFlow Backend
 
-TaskFlow is a project and task management backend API built with FastAPI, PostgreSQL, Redis, and Celery.
+TaskFlow is a production-ready project and task management backend API built with FastAPI, PostgreSQL, Redis, and Celery.
 
-## Features (Planned)
-- User authentication (JWT + Argon2)
-- Project CRUD and owner-based authorization
-- Task management with status, assignee, and due date tracking
-- Task filtering & pagination
-- Redis-backed task listing cache with automatic invalidation
-- Background notification system via Celery
-- Docker & Docker Compose setup
+---
 
-## Current Status
-Initial project setup with basic FastAPI application.
+## Features
+
+- **Authentication & Security**: User signup, login, Argon2id password hashing, and JWT bearer authentication.
+- **Projects Management**: Full Project CRUD with strict cross-tenant user ownership authorization.
+- **Task Tracking**: Task management supporting statuses (`todo`, `in_progress`, `done`), assignees, and due dates.
+- **Task Filtering & Pagination**: `GET /tasks` with filtering by status, assignee, and date range, with response pagination.
+- **Redis Task Caching**: High-performance read-through caching for `GET /tasks` responses isolated per user.
+- **Cache Invalidation**: Instant Redis cache key invalidation when task data changes (create, update, delete, reassignment).
+- **Background Notifications**: Asynchronous task reassignment notifications and periodic overdue task checks via Celery Beat worker pool.
+- **Health & Metrics**: `/health` endpoint for DB and Redis status checks, and `/metrics` for Prometheus monitoring.
+- **Containerization & CI**: Multi-container Docker Compose configuration and GitHub Actions CI pipeline.
+
+---
+
+## Technology Stack
+
+- **Framework**: FastAPI (Python 3.12)
+- **Database**: PostgreSQL with SQLAlchemy 2.0 ORM & Alembic migrations
+- **Caching & Broker**: Redis & Celery
+- **Security**: Argon2id (`argon2-cffi`) & PyJWT
+- **Testing & Tooling**: Pytest, HTTPX, Ruff
+
+---
+
+## Architecture
+
+```text
+ Client Request (HTTP / JWT)
+         │
+         ▼
+┌──────────────────┐
+│   FastAPI App    │ ───► Redis Cache (GET /tasks)
+└────────┬─────────┘
+         │
+         ├──────────────────► PostgreSQL Database
+         │
+         ▼
+┌──────────────────┐
+│  Celery Worker   │ ───► Notifications Processing
+└──────────────────┘
+         ▲
+         │
+┌──────────────────┐
+│   Celery Beat    │ (Periodic Overdue Tasks Checker)
+└──────────────────┘
+```
+
+---
+
+## Project Structure
+
+```text
+taskflow/
+├── alembic/              # Database migration scripts
+├── app/
+│   ├── api/              # API endpoints and dependency handlers
+│   │   ├── deps.py       # Authentication dependencies (get_current_user)
+│   │   └── v1/           # API v1 routes (auth, projects, tasks, notifications, health, metrics)
+│   ├── core/             # Configuration, Redis client, Celery app & security
+│   ├── db/               # SQLAlchemy engine & Base model setup
+│   ├── models/           # SQLAlchemy ORM models (User, Project, Task, Notification)
+│   ├── schemas/          # Pydantic validation models
+│   └── tasks/            # Celery worker background tasks
+├── tests/                # Automated Pytest test suite
+├── .env.example          # Sample environment settings
+├── docker-compose.yml    # Docker Compose multi-container setup
+├── Dockerfile            # Container build instructions
+├── pyproject.toml        # Dependencies and project tools configuration
+└── README.md             # Documentation
+```
+
+---
+
+## Environment Variables
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `PROJECT_NAME` | Name of the service | `TaskFlow` |
+| `DEBUG` | Enable debug mode | `False` |
+| `SECRET_KEY` | JWT signing secret key (min 32 chars) | `change_this_to_a_secure_secret_key` |
+| `ALGORITHM` | JWT signing algorithm | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT token expiration time | `1440` (24h) |
+| `DATABASE_URL` | PostgreSQL connection DSN | `postgresql://postgres:postgres@localhost:5432/taskflow` |
+| `REDIS_URL` | Redis cache connection URL | `redis://localhost:6379/0` |
+| `CELERY_BROKER_URL` | Celery broker URL | `redis://localhost:6379/1` |
+| `CELERY_RESULT_BACKEND` | Celery result backend URL | `redis://localhost:6379/2` |
+
+---
+
+## Quick Setup
+
+### Prerequisites
+
+- Python 3.12+
+- PostgreSQL 16+
+- Redis 7+
+
+### Local Setup
+
+1. **Clone repository and install dependencies**:
+   ```bash
+   git clone <repository_url>
+   cd TaskFlow
+   pip install .[dev]
+   ```
+
+2. **Configure environment**:
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Run database migrations**:
+   ```bash
+   python -m alembic upgrade head
+   ```
+
+4. **Start local API server**:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+---
+
+## Docker Setup
+
+To run the entire TaskFlow stack (FastAPI, PostgreSQL, Redis, Celery Worker, and Celery Beat) in containers:
+
+```bash
+docker-compose up --build
+```
+
+---
+
+## Authentication
+
+- **Signup**: `POST /auth/signup`
+- **Login**: `POST /auth/login` (Returns JWT `access_token`)
+- **Profile**: `GET /auth/me` (Header: `Authorization: Bearer <access_token>`)
+
+---
+
+## API Documentation
+
+Interactive Swagger documentation is automatically generated by FastAPI:
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+---
+
+## Background Jobs & Notifications
+
+- **Task Reassignment**: Whenever a task's assignee changes, a Celery job queues a background notification record for the new assignee.
+- **Overdue Task Notifications**: Celery Beat runs periodically to find tasks past their due date and generates overdue notifications without creating duplicate unread entries.
+
+---
+
+## Redis Caching & Cache Invalidation
+
+`GET /tasks` queries are cached in Redis under user-isolated keys (`tasks:user:{user_id}:...`).
+Any mutation (`POST`, `PATCH`, `DELETE`) on tasks automatically invalidates all task list cache entries for that user, ensuring consistency.
+
+---
+
+## Testing & CI
+
+Run the automated Pytest suite:
+```bash
+pytest
+```
+
+Run Ruff linter:
+```bash
+ruff check .
+```
+
+The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that runs linting and testing against PostgreSQL and Redis containers on every push or pull request.
+
+---
+
+## Assumptions & Tradeoffs
+
+1. **FastAPI**: Selected for native asynchronous support, auto-generated OpenAPI docs, and clean Pydantic integration.
+2. **PostgreSQL & SQLAlchemy**: Relational integrity and foreign keys (`CASCADE` on project deletion) ensure multi-tenant security.
+3. **Argon2id**: Preferred over legacy bcrypt for resistance against GPU/ASIC hardware attacks.
+4. **Cache Invalidation**: Simple pattern deletion (`tasks:user:{user_id}:*`) provides deterministic invalidation without complex cache tag overhead.
+5. **Deployment Choice**: Containerized deployment instructions via Docker Compose are provided for reproducible local and server execution.
+
+---
+
+## What I Would Do With More Time
+
+1. **Email / Push Notifications**: Integrate real-world email dispatch (SendGrid / AWS SES) into the Celery notification worker.
+2. **Role-Based Access Control (RBAC)**: Add explicit project roles (`owner`, `editor`, `viewer`) for shared team projects.
+3. **Rate Limiting**: Add Redis-backed API rate limiting to protect auth endpoints.

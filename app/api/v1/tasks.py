@@ -1,6 +1,5 @@
 import math
 from datetime import datetime
-import json
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 

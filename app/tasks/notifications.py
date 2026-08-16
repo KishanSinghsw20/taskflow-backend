@@ -59,7 +59,7 @@ def check_overdue_tasks(db=None):
                     Notification.user_id == target_user_id,
                     Notification.task_id == task.id,
                     Notification.type == "overdue",
-                    Notification.is_read == False,
+                    Notification.is_read.is_(False),
                 )
                 .first()
             )

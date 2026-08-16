@@ -1,6 +1,4 @@
-import json
 import logging
-from typing import Any
 import redis
 
 from app.core.config import settings
