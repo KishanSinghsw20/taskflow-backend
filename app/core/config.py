@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "TaskFlow"
     DEBUG: bool = False
-    SECRET_KEY: str = "default_secret_key_change_me"
+    SECRET_KEY: str = "dev_super_secret_key_32_bytes_min_length_taskflow"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
