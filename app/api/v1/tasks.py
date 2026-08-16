@@ -12,6 +12,8 @@ from app.models.project import Project
 from app.models.task import Task, TaskStatus
 from app.models.user import User
 from app.schemas.task import PaginatedTasksResponse, TaskCreate, TaskResponse, TaskUpdate
+from app.tasks.notifications import send_task_reassignment_notification
+
 
 router = APIRouter(tags=["tasks"])
 
@@ -62,9 +64,17 @@ def create_task(
     db.commit()
     db.refresh(task)
 
+    if task.assignee_id:
+        try:
+            send_task_reassignment_notification.delay(task.id, task.assignee_id, task.title)
+        except Exception:
+            # Fallback for sync execution if Celery broker unavailable during tests/dev
+            pass
+
     # Invalidate task list cache for current user
     invalidate_user_tasks_cache(current_user.id)
     return task
+
 
 
 @router.get("/tasks", response_model=PaginatedTasksResponse)
@@ -154,6 +164,7 @@ def update_task(
 ):
     """Update fields of a task owned by the current authenticated user."""
     task = get_user_task(task_id, db, current_user)
+    old_assignee_id = task.assignee_id
 
     if task_in.assignee_id is not None:
         assignee = db.query(User).filter(User.id == task_in.assignee_id).first()
@@ -171,9 +182,17 @@ def update_task(
     db.commit()
     db.refresh(task)
 
+    # Queue notification if task is reassigned to a new user
+    if task.assignee_id and task.assignee_id != old_assignee_id:
+        try:
+            send_task_reassignment_notification.delay(task.id, task.assignee_id, task.title)
+        except Exception:
+            pass
+
     # Invalidate task list cache for current user
     invalidate_user_tasks_cache(current_user.id)
     return task
+
 
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

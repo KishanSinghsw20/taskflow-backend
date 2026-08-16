@@ -48,3 +48,5 @@ class Task(Base):
 
     project = relationship("Project", back_populates="tasks")
     assignee = relationship("User", back_populates="assigned_tasks")
+    notifications = relationship("Notification", back_populates="task", cascade="all, delete-orphan")
+
