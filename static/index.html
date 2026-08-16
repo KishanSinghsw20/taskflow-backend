@@ -834,7 +834,16 @@
       }
     }
 
+    function switchNav(view) {
+      document.querySelectorAll('.content-view > div').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      const targetView = document.getElementById(`view-${view}`);
+      if (targetView) targetView.style.display = 'block';
+      if (window.event && window.event.target) window.event.target.classList.add('active');
+    }
+
     async function loadUsers() {
+
       try {
         const res = await fetchAPI('/auth/users');
         if (res.ok) {
