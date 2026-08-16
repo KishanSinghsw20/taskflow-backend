@@ -1,4 +1,7 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
@@ -28,10 +31,18 @@ app.include_router(notifications_router)
 app.include_router(health_router)
 app.include_router(metrics_router)
 
+# Mount static directory if present
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
-def root():
-    """Root endpoint returning basic service status."""
+@app.get("/dashboard")
+def dashboard():
+    """Serve the interactive web dashboard."""
+    if os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
     return {"message": f"Welcome to {settings.PROJECT_NAME} API"}
+
 
 
