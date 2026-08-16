@@ -27,4 +27,6 @@ class User(Base):
     )
 
     projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
+    assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="[Task.assignee_id]")
+
 
