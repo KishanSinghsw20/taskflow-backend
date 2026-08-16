@@ -1,20 +1,21 @@
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
 
+class Project(Base):
+    """Project database model belonging to an owner user."""
 
-class User(Base):
-    """User database model for authentication and ownership."""
-
-    __tablename__ = "users"
+    __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now(), nullable=False
     )
@@ -26,5 +27,4 @@ class User(Base):
         nullable=False,
     )
 
-    projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
-
+    owner = relationship("User", back_populates="projects")
