@@ -302,15 +302,6 @@
       justify-content: center;
     }
 
-    .bell-badge.blinking {
-      animation: pulse-ring 1.5s infinite;
-    }
-
-    @keyframes pulse-ring {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-      70% { transform: scale(1.15); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-    }
 
     .notification-dropdown {
       position: absolute;
@@ -1137,10 +1128,8 @@
         if (unreadCount > 0) {
           badge.innerText = unreadCount;
           badge.style.display = 'flex';
-          badge.classList.add('blinking');
         } else {
           badge.style.display = 'none';
-          badge.classList.remove('blinking');
         }
 
         // Dropdown List Update
