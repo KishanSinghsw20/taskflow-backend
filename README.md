@@ -13,9 +13,10 @@ docker-compose up --build
 ```
 
 Access the service once containers are running:
-* **Interactive App Dashboard**: http://localhost:8000/
-* **Swagger API Docs**: http://localhost:8000/docs
-* **ReDoc API Docs**: http://localhost:8000/redoc
+
+- **Interactive App Dashboard**: http://localhost:8000/
+- **Swagger API Docs**: http://localhost:8000/docs
+- **ReDoc API Docs**: http://localhost:8000/redoc
 
 ---
 
@@ -26,22 +27,26 @@ If you prefer to run services locally outside Docker:
 **Prerequisites**: Python 3.12, PostgreSQL 16, Redis 7.
 
 1. **Install Python dependencies**:
+
    ```bash
    pip install .[dev]
    ```
 
 2. **Set environment variables**:
    Create a `.env` file in the project root (or copy `.env.example`):
+
    ```bash
    cp .env.example .env
    ```
 
 3. **Run database migrations**:
+
    ```bash
    python -m alembic upgrade head
    ```
 
 4. **Start the API server**:
+
    ```bash
    uvicorn app.main:app --reload
    ```
@@ -61,18 +66,36 @@ If you prefer to run services locally outside Docker:
 - **Task Management**: Supports status tracking (`todo`, `in_progress`, `done`), assignees, due dates, filtering (`GET /tasks?status=...&assignee_id=...`), and pagination (`page`, `page_size`, `total`, `total_pages`).
 - **Redis Caching**: `GET /tasks` responses are cached per user in Redis. Any task creation, update, deletion, or status change automatically invalidates the user's cached task listings.
 - **Background Tasks**: Celery handles asynchronous task reassignment notifications and periodic overdue task checks (scheduled via Celery Beat) without generating duplicate unread notifications.
+- **Web Dashboard**: Single-page web dashboard interface ([static/index.html](static/index.html)) for testing authentication, project CRUD, task board, notifications bell popover, and system health checks.
 - **Observability**: Health checks at `GET /health` (verifies PostgreSQL and Redis) and Prometheus metrics at `GET /metrics`.
+
+---
+
+## Interactive Web Dashboard
+
+TaskFlow includes an **Interactive Web Dashboard UI** built into the backend (`static/index.html`):
+
+- **URLs**:
+  - [http://localhost:8000/static/index.html](http://localhost:8000/static/index.html)
+- **Authentication Gateway**: Sign In and Sign Up screens with JWT token persistence.
+- **Workspace View**:
+  - **Projects Manager**: Create and manage projects.
+  - **Task Board**: Create tasks with dynamic project & assignee dropdowns, status controls (`Todo`, `In Progress`, `Done`), and filtering.
+  - **Notification Bell & Popover**: Real-time unread notification count badge, popover dropdown, and mark read actions.
+  - **System Status & Theme Switcher**: Toggle between System Theme, Dark Theme, and Light Theme.
 
 ---
 
 ## Testing & Linting
 
 Run automated tests:
+
 ```bash
 pytest
 ```
 
 Run linter:
+
 ```bash
 ruff check .
 ```
@@ -83,11 +106,11 @@ Continuous Integration is configured via GitHub Actions in `.github/workflows/ci
 
 ## Technical Design Decisions & Tradeoffs
 
-* **FastAPI**: Provides native async capability, request validation via Pydantic v2, and auto-generated OpenAPI docs out of the box.
-* **SQLAlchemy 2.0 & Alembic**: Explicit database queries and schema migration history rather than auto-creating tables at runtime.
-* **Argon2id over bcrypt**: Uses modern memory-hard password hashing recommended by OWASP.
-* **Redis Key Isolation**: Cache keys are scoped by user ID (`tasks:user:{user_id}:...`) to guarantee cross-tenant data isolation.
-* **Celery & Redis**: Simple broker setup suitable for take-home scope while keeping background jobs decoupled from HTTP request loops.
+- **FastAPI**: Provides native async capability, request validation via Pydantic v2, and auto-generated OpenAPI docs out of the box.
+- **SQLAlchemy 2.0 & Alembic**: Explicit database queries and schema migration history rather than auto-creating tables at runtime.
+- **Argon2id over bcrypt**: Uses modern memory-hard password hashing recommended by OWASP.
+- **Redis Key Isolation**: Cache keys are scoped by user ID (`tasks:user:{user_id}:...`) to guarantee cross-tenant data isolation.
+- **Celery & Redis**: Simple broker setup suitable for take-home scope while keeping background jobs decoupled from HTTP request loops.
 
 ---
 
