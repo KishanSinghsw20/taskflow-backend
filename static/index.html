@@ -251,13 +251,106 @@
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 1.25rem;
     }
 
     .theme-select {
       width: auto;
       padding: 0.4rem 0.8rem;
       font-size: 0.85rem;
+    }
+
+    /* Notification Bell Dropdown */
+    .notification-wrapper {
+      position: relative;
+    }
+
+    .bell-btn {
+      background: var(--panel-border);
+      border: none;
+      color: var(--text);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .bell-btn:hover {
+      background: var(--panel-hover);
+    }
+
+    .bell-badge {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      background: var(--danger);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 700;
+      border-radius: 50%;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .bell-badge.blinking {
+      animation: pulse-ring 1.5s infinite;
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { transform: scale(1.15); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    .notification-dropdown {
+      position: absolute;
+      top: 45px;
+      right: 0;
+      width: 340px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      box-shadow: 0 10px 25px var(--shadow);
+      z-index: 1000;
+      display: none;
+    }
+
+    .dropdown-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .dropdown-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .dropdown-item {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--panel-border);
+      font-size: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .dropdown-item:last-child {
+      border-bottom: none;
     }
 
     .user-profile {
@@ -393,7 +486,6 @@
       border-radius: 4px;
       font-size: 0.75rem;
       font-weight: 600;
-      text-transform: uppercase;
     }
 
     .badge-todo { background: rgba(156, 163, 175, 0.2); color: var(--muted); }
@@ -406,7 +498,7 @@
       gap: 1rem;
     }
 
-    /* Toast notification */
+    /* Toast popup */
     #toast {
       position: fixed;
       bottom: 2rem;
@@ -483,12 +575,31 @@
         <span>TaskFlow Workspace</span>
       </div>
       <div class="header-actions">
-        <!-- System / Dark / Light Theme Selector -->
+        <!-- Theme Selector -->
         <select id="theme-selector" class="theme-select" onchange="changeTheme(this.value)">
           <option value="system">🌓 System Theme</option>
           <option value="dark">🌙 Dark Theme</option>
           <option value="light">☀️ Light Theme</option>
         </select>
+
+        <!-- Notification Bell & Dropdown Popover -->
+        <div class="notification-wrapper">
+          <button class="bell-btn" id="bell-btn" onclick="toggleNotificationDropdown()">
+            🔔
+            <span class="bell-badge" id="bell-badge" style="display: none;">0</span>
+          </button>
+
+          <div class="notification-dropdown" id="notification-dropdown">
+            <div class="dropdown-header">
+              <span>Unread Notifications</span>
+              <button class="btn btn-secondary" onclick="loadNotifications()" style="width: auto; padding: 0.2rem 0.5rem; font-size: 0.75rem;">Refresh</button>
+            </div>
+            <div class="dropdown-list" id="dropdown-notifications-list">
+              <div style="padding: 1rem; text-align: center; color: var(--muted);">No unread notifications</div>
+            </div>
+          </div>
+        </div>
+
         <div class="user-profile">
           <div class="user-info">
             <div class="user-name" id="profile-name">User</div>
@@ -535,7 +646,7 @@
             <div class="view-header">
               <h2>Create New Project</h2>
             </div>
-            <form onsubmit="handleCreateProject(event)" class="modal-grid">
+            <form id="create-project-form" onsubmit="handleCreateProject(event)" class="modal-grid">
               <div class="form-group">
                 <label>Project Name</label>
                 <input type="text" id="p-name" placeholder="TaskFlow Backend Architecture" required>
@@ -578,7 +689,7 @@
             <div class="view-header">
               <h2>Create New Task</h2>
             </div>
-            <form onsubmit="handleCreateTask(event)">
+            <form id="create-task-form" onsubmit="handleCreateTask(event)">
               <div class="modal-grid">
                 <div class="form-group">
                   <label>Select Project</label>
@@ -593,9 +704,9 @@
                 <div class="form-group">
                   <label>Status</label>
                   <select id="t-status">
-                    <option value="todo">todo</option>
-                    <option value="in_progress">in_progress</option>
-                    <option value="done">done</option>
+                    <option value="todo">Todo</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="done">Done</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -617,11 +728,11 @@
             <div class="view-header">
               <h2>Tasks List</h2>
               <div style="display: flex; gap: 1rem;">
-                <select id="task-filter-status" onchange="loadTasks()" style="width: 140px;">
+                <select id="task-filter-status" onchange="loadTasks()" style="width: 150px;">
                   <option value="">All Statuses</option>
-                  <option value="todo">todo</option>
-                  <option value="in_progress">in_progress</option>
-                  <option value="done">done</option>
+                  <option value="todo">Todo</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="done">Done</option>
                 </select>
                 <button class="btn btn-secondary" onclick="loadTasks()" style="width: auto; padding: 0.4rem 0.8rem;">Refresh</button>
               </div>
@@ -694,8 +805,15 @@
 
   <script>
     let token = localStorage.getItem('taskflow_token') || '';
+    let userMap = {};
+    let projectMap = {};
 
-    // Theme Management
+    const STATUS_LABELS = {
+      'todo': 'Todo',
+      'in_progress': 'In Progress',
+      'done': 'Done'
+    };
+
     function changeTheme(theme) {
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('taskflow_theme', theme);
@@ -809,9 +927,6 @@
       return res;
     }
 
-    let userMap = {};
-    let projectMap = {};
-
     async function initDashboard() {
       document.getElementById('auth-container').style.display = 'none';
       document.getElementById('dashboard-container').style.display = 'flex';
@@ -843,7 +958,6 @@
     }
 
     async function loadUsers() {
-
       try {
         const res = await fetchAPI('/auth/users');
         if (res.ok) {
@@ -894,7 +1008,6 @@
       }
     }
 
-
     async function handleCreateProject(e) {
       e.preventDefault();
       const name = document.getElementById('p-name').value;
@@ -904,8 +1017,7 @@
         body: JSON.stringify({ name, description })
       });
       if (res.ok) {
-        document.getElementById('p-name').value = '';
-        document.getElementById('p-desc').value = '';
+        document.getElementById('create-project-form').reset();
         showToast('Project created');
         loadProjects();
       }
@@ -934,6 +1046,7 @@
           tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--muted);">No tasks found.</td></tr>`;
           return;
         }
+
         tbody.innerHTML = data.items.map(t => `
           <tr>
             <td>${t.id}</td>
@@ -941,16 +1054,15 @@
             <td><strong>${t.title}</strong></td>
             <td>
               <select onchange="quickUpdateTaskStatus(${t.id}, this.value)" style="width: auto; padding: 0.2rem; font-size: 0.75rem;">
-                <option value="todo" ${t.status === 'todo' ? 'selected' : ''}>todo</option>
-                <option value="in_progress" ${t.status === 'in_progress' ? 'selected' : ''}>in_progress</option>
-                <option value="done" ${t.status === 'done' ? 'selected' : ''}>done</option>
+                <option value="todo" ${t.status === 'todo' ? 'selected' : ''}>Todo</option>
+                <option value="in_progress" ${t.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                <option value="done" ${t.status === 'done' ? 'selected' : ''}>Done</option>
               </select>
             </td>
             <td>${t.assignee_id ? (userMap[t.assignee_id] || ('User #' + t.assignee_id)) : 'Unassigned'}</td>
             <td><button class="btn btn-danger" style="width: auto; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="deleteTask(${t.id})">Delete</button></td>
           </tr>
         `).join('');
-
       }
     }
 
@@ -960,7 +1072,7 @@
         body: JSON.stringify({ status: newStatus })
       });
       if (res.ok) {
-        showToast(`Task status updated to ${newStatus}`);
+        showToast(`Task status updated to ${STATUS_LABELS[newStatus] || newStatus}`);
         loadTasks();
       }
     }
@@ -981,10 +1093,10 @@
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        document.getElementById('t-title').value = '';
-        document.getElementById('t-desc').value = '';
+        document.getElementById('create-task-form').reset();
         showToast('Task created');
         loadTasks();
+        loadNotifications();
       }
     }
 
@@ -996,14 +1108,56 @@
       }
     }
 
-    // Notifications
+    // Notifications & Bell Popover
+    function toggleNotificationDropdown() {
+      const dropdown = document.getElementById('notification-dropdown');
+      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', (e) => {
+      const wrapper = document.querySelector('.notification-wrapper');
+      if (wrapper && !wrapper.contains(e.target)) {
+        document.getElementById('notification-dropdown').style.display = 'none';
+      }
+    });
+
     async function loadNotifications() {
       const res = await fetchAPI('/notifications');
       if (res.ok) {
         const notifications = await res.json();
-        const unreadCount = notifications.filter(n => !n.is_read).length;
+        const unread = notifications.filter(n => !n.is_read);
+        const unreadCount = unread.length;
+
+        // Stat Card Update
         document.getElementById('stat-notifications').innerText = unreadCount;
 
+        // Bell Badge Update
+        const badge = document.getElementById('bell-badge');
+        if (unreadCount > 0) {
+          badge.innerText = unreadCount;
+          badge.style.display = 'flex';
+          badge.classList.add('blinking');
+        } else {
+          badge.style.display = 'none';
+          badge.classList.remove('blinking');
+        }
+
+        // Dropdown List Update
+        const dropdownList = document.getElementById('dropdown-notifications-list');
+        if (unread.length === 0) {
+          dropdownList.innerHTML = `<div style="padding: 1rem; text-align: center; color: var(--muted);">No unread notifications</div>`;
+        } else {
+          dropdownList.innerHTML = unread.map(n => `
+            <div class="dropdown-item">
+              <div style="font-weight: 600; color: var(--accent);">${n.type.toUpperCase()}</div>
+              <div>${n.message}</div>
+              <div><button class="btn btn-secondary" style="width: auto; padding: 0.15rem 0.4rem; font-size: 0.7rem; margin-top: 0.25rem;" onclick="markNotificationRead(${n.id})">Mark Read</button></div>
+            </div>
+          `).join('');
+        }
+
+        // Main Notifications Table Update
         const tbody = document.getElementById('notifications-table-body');
         if (notifications.length === 0) {
           tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--muted);">No notifications.</td></tr>`;
@@ -1024,7 +1178,7 @@
     async function markNotificationRead(id) {
       const res = await fetchAPI(`/notifications/${id}/read`, { method: 'PATCH' });
       if (res.ok) {
-        showToast('Notification marked as read');
+        showToast('Notification marked read');
         loadNotifications();
       }
     }
